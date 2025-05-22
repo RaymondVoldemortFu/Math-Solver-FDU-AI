@@ -33,7 +33,7 @@ def process_func(example):
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
 # 使用本地模型路径
-model_id = "./Qwen3-0.6B"
+model_id = "./pretrained_models/qwen3"
 
 # 加载本地模型权重
 tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=True, verbose=True)
