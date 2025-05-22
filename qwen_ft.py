@@ -32,17 +32,16 @@ def process_func(example):
         labels = labels[:MAX_LENGTH]
     return {"input_ids": input_ids, "attention_mask": attention_mask, "labels": labels}
 
-# 直接使用Hugging Face加载模型
-model_id = "Qwen/Qwen2.5-0.5B-Instruct"
+# 使用本地模型路径
+model_id = "./Qwen3-0.6B"
 
-# 使用Transformers加载模型权重
+# 加载本地模型权重
 tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=True, verbose=True)
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
     device_map="auto",
     torch_dtype=torch.bfloat16,
-    verbose=True,
-    cache_dir="pretrained_model_cache"
+    verbose=True
 )
 model.enable_input_require_grads()  # 开启梯度检查点时，要执行该方法
 
@@ -66,7 +65,7 @@ config = LoraConfig(
 model = get_peft_model(model, config)
 
 args = TrainingArguments(
-    output_dir="./output/Qwen",
+    output_dir="./output/Qwen3",
     per_device_train_batch_size=4,
     gradient_accumulation_steps=4,
     logging_steps=10,
@@ -79,10 +78,10 @@ args = TrainingArguments(
 )
 
 swanlab_callback = SwanLabCallback(
-    project="Qwen2.5-0.5B-fintune",
-    experiment_name="Qwen/Qwen2.5-0.5B-Instruct",
+    project="Qwen3-0.6B-fintune",
+    experiment_name="Qwen3-0.6B",
     config={
-        "model": "Qwen/Qwen2.5-0.5B-Instruct",
+        "model": "Qwen3-0.6B",
         "dataset": "news",
     }
 )
