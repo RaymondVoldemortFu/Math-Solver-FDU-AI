@@ -4,6 +4,10 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, TrainingArguments,
 from swanlab.integration.huggingface import SwanLabCallback
 from peft import LoraConfig, TaskType, get_peft_model
 import swanlab
+import logging
+
+
+logging.basicConfig(level=logging.INFO)
 
 
 def process_func(example):
@@ -32,8 +36,14 @@ def process_func(example):
 model_id = "Qwen/Qwen2.5-0.5B-Instruct"
 
 # 使用Transformers加载模型权重
-tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_id, device_map="auto", torch_dtype=torch.bfloat16)
+tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=True, verbose=True)
+model = AutoModelForCausalLM.from_pretrained(
+    model_id,
+    device_map="auto",
+    torch_dtype=torch.bfloat16,
+    verbose=True,
+    cache_dir="pretrained_model_cache"
+)
 model.enable_input_require_grads()  # 开启梯度检查点时，要执行该方法
 
 train_json_new_path = "train.json"
