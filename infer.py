@@ -31,7 +31,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4):
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
             generated_ids = model.generate(
                 model_inputs.input_ids,
-                max_new_tokens=1024
+                max_new_tokens=4096
             )
 
         for j, (input_ids, output_ids) in enumerate(zip(model_inputs.input_ids, generated_ids)):
@@ -61,13 +61,13 @@ tokenizer = AutoTokenizer.from_pretrained("./pretrained_models/qwen3", use_fast=
 # 设置左侧填充以解决警告
 tokenizer.padding_side = 'left'
 model = AutoModelForCausalLM.from_pretrained("./pretrained_models/qwen3", device_map="auto", torch_dtype=torch.bfloat16)
-model = PeftModel.from_pretrained(model, model_id="./output/Qwen3/checkpoint-3750/")
+# model = PeftModel.from_pretrained(model, model_id="./output/Qwen3/checkpoint-3750/")
 model.eval()  # 设置为评估模式
 print("模型加载完成")
 
 # 批量预测
 print("开始批量预测...")
-batch_size = 4  # 可根据GPU内存调整
+batch_size = 8  # 可根据GPU内存调整
 results = batch_predict(test_data, model, tokenizer, batch_size)
 
 # 写入结果，保持原始顺序
