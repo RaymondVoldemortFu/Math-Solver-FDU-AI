@@ -2,3 +2,5 @@
 pretrained_models
 .DS_Store
 output
+swanlog
+submit.csv

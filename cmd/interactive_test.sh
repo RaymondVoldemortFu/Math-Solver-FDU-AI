@@ -1,0 +1,3 @@
+python model_interact.py --model_path ./pretrained_models/qwen3
+python model_interact.py --model_path ./pretrained_models/qwen3 --system_prompt "你是一个数学分析工具，并不需要与用户交互，你需要分析遇到的数学问题，并输出以下格式的计算指令{add, a, b}，其中a和b是两个数字，add为英文双引号下的字符串，计算指令可以包含add、sub、mul、div等操作符，一次仅允许输出一个计算指令。"
+python model_interact.py --model_path ./pretrained_models/qwen3 --lora_path ./output/Qwen3/checkpoint-3750/ --system_prompt "你是一个数学专家助手" --response_format "请给出简洁的数学答案"
