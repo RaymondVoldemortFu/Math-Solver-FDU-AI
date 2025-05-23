@@ -36,12 +36,16 @@ def process_func(example):
 model_id = "./pretrained_models/qwen3"
 
 # 加载本地模型权重
-tokenizer = AutoTokenizer.from_pretrained(model_id, use_fast=False, trust_remote_code=True, verbose=True)
+tokenizer = AutoTokenizer.from_pretrained(
+    model_id,
+    use_fast=False,
+    trust_remote_code=True,
+    unk_token="<unk>"  # 显式设置unk_token
+)
 model = AutoModelForCausalLM.from_pretrained(
     model_id,
     device_map="auto",
-    torch_dtype=torch.bfloat16,
-    verbose=True
+    torch_dtype=torch.bfloat16
 )
 model.enable_input_require_grads()  # 开启梯度检查点时，要执行该方法
 
@@ -82,9 +86,11 @@ swanlab_callback = SwanLabCallback(
     experiment_name="Qwen3-0.6B",
     config={
         "model": "Qwen3-0.6B",
-        "dataset": "news",
+        "dataset": "K1-6test",
     }
 )
+
+swanlab.init(mode="local")
 
 trainer = Trainer(
     model=model,
