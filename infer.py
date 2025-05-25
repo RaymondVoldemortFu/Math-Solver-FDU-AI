@@ -3,9 +3,10 @@ import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
+from utils.utils import SYSTEM_PROMPT, extract_answer
 
 
-def batch_predict(test_data, model, tokenizer, batch_size=4):
+def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=True):
     """批量预测函数"""
     results = {}
 
@@ -16,10 +17,17 @@ def batch_predict(test_data, model, tokenizer, batch_size=4):
         batch_ids = []
 
         for item in batch:
-            messages = [
-                {"role": "system", "content": item['instruction']},
-                {"role": "user", "content": item['question']}
-            ]
+            if use_system_prompt:
+                # 使用系统提示词
+                messages = [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": item['question']}
+                ]
+            else:
+                messages = [
+                    {"role": "system", "content": item['instruction']},
+                    {"role": "user", "content": item['question']}
+                ]
             batch_messages.append(messages)
             batch_ids.append(item['id'])
 
