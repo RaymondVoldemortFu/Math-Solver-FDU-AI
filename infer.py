@@ -99,7 +99,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
             generated_ids = model.generate(
                 model_inputs.input_ids,
-                max_new_tokens=1024
+                max_new_tokens=600
             )
 
         # 存储需要重试的项
@@ -212,7 +212,7 @@ def main():
 
     # 批量预测
     logger.info("开始批量预测...")
-    batch_size = 8  # 可根据GPU内存调整
+    batch_size = 64  # 可根据GPU内存调整
     results = batch_predict(test_data, model, tokenizer, batch_size, logger=logger)
 
     # 写入结果，保持原始顺序
