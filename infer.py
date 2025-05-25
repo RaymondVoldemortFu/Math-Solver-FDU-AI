@@ -37,7 +37,7 @@ def setup_logger():
     return logger
 
 
-def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=True, max_retries=20):
+def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=True, max_retries=20, logger=None):
     """批量预测函数，支持重试逻辑"""
     results = {}
     error_cases = {}  # 用于记录重试后仍然无法提取答案的情况
@@ -67,8 +67,9 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             # 根据重试次数调整系统提示词
             system_prompt = SYSTEM_PROMPT
             if retry_count > 0:
-                system_prompt += (f"\n这是第{retry_count + 1}次尝试，请务必以<answer>数字</answer>格式给出答案，不要使用其他格式。"
-                                  f"推理的时候减少过多的思考，以给出答案为重")
+                system_prompt += (
+                    f"\n这是第{retry_count + 1}次尝试，请务必以<answer>数字</answer>格式给出答案，不要使用其他格式。"
+                    f"推理的时候减少过多的思考，以给出答案为重")
 
             if use_system_prompt:
                 messages = [
@@ -90,8 +91,6 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
         if not batch_to_process:
             break
 
-        # print("batch_messages:", batch_messages)
-
         texts = [tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
                  for msg in batch_messages]
 
@@ -112,7 +111,15 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             retry_count = batch_retry_counts[j]
             generated_part = output_ids[len(input_ids):]
             response = tokenizer.decode(generated_part, skip_special_tokens=True)
-            # print(f"ID: {item_id} - 生成的回答: {response}")
+
+            # 记录到日志文件
+            if logger:
+                question = batch_to_process[j]['question']
+                attempt_info = f"第{retry_count + 1}次尝试" if retry_count > 0 else "首次尝试"
+                logger.info(f"ID: {item_id} - {attempt_info}")
+                logger.info(f"问题: {question}")
+                logger.info(f"回答: {response}")
+
             # 尝试提取标准格式的答案
             try:
                 answer = extract_answer(response)
@@ -120,15 +127,25 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
                 if item_id not in results:
                     newly_completed += 1
                 results[item_id] = answer  # 成功提取答案，保存并不再重试
-                if retry_count > 0:
-                    print(f"ID: {item_id} - 在第{retry_count + 1}次尝试后成功获取答案")
+
+                if logger:
+                    logger.info(f"成功提取答案: {answer}")
+                    if retry_count > 0:
+                        logger.info(f"在第{retry_count + 1}次尝试后成功获取答案")
+                    logger.info("-" * 50)
+
             except ValueError as e:
                 # 如果当前重试次数小于最大重试次数，添加到重试列表
                 if retry_count < max_retries - 1:
                     retry_counts[item_id] = retry_count + 1
                     # 将原始项添加到重试列表
                     items_to_retry.append(batch_to_process[j])
-                    print(f"ID: {item_id} - 提取答案失败，将进行第{retry_count + 2}次尝试: {e}")
+
+                    if logger:
+                        logger.warning(f"提取答案失败: {e}")
+                        logger.info(f"将进行第{retry_count + 2}次尝试")
+                        logger.info("-" * 50)
+
                 else:
                     # 达到最大重试次数，保存原始响应
                     error_cases[item_id] = str(e)
@@ -136,12 +153,21 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
                     # 只有首次达到最大重试次数才计入进度
                     if item_id not in results:
                         newly_completed += 1
-                    print(f"ID: {item_id} - 达到最大重试次数({max_retries})，无法提取标准答案")
+
+                    if logger:
+                        logger.error(f"达到最大重试次数({max_retries})，无法提取标准答案")
+                        logger.error(f"错误原因: {e}")
+                        logger.info("-" * 50)
 
         # 更新进度条
         processed_count += newly_completed
         progress_bar.update(newly_completed)
         progress_bar.set_postfix({"已完成": processed_count, "待处理": len(pending_items), "重试": len(items_to_retry)})
+
+        # 如果有日志记录器，记录批次统计信息
+        if logger:
+            logger.info(f"批次处理完成，当前进度: {processed_count}/{total_items}，"
+                        f"待处理: {len(pending_items)}，需重试: {len(items_to_retry)}")
 
         # 将需要重试的项添加到待处理列表的前面，确保优先处理
         pending_items = items_to_retry + pending_items
@@ -153,44 +179,52 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
     # 关闭进度条
     progress_bar.close()
 
-    # 输出错误统计
-    if error_cases:
-        print(f"共有 {len(error_cases)} 条数据在{max_retries}次尝试后仍无法提取标准答案格式")
+    # 记录错误统计
+    if error_cases and logger:
+        logger.warning(f"共有 {len(error_cases)} 条数据在{max_retries}次尝试后仍无法提取标准答案格式")
 
     return results
 
 
-# 主函数
-test_json_new_path = "test.json"
+def main():
+    # 设置日志记录器
+    logger = setup_logger()
+    logger.info("开始推理过程")
 
-# 加载测试数据
-print("正在加载测试数据...")
-with open(test_json_new_path, 'r', encoding='utf-8') as file:
-    test_data = json.load(file)
-print(f"加载完成，共 {len(test_data)} 条测试数据")
+    test_json_new_path = "test.json"
 
-# 加载模型和分词器
-print("正在加载模型和分词器...")
-tokenizer = AutoTokenizer.from_pretrained("./pretrained_models/qwen3", use_fast=False, trust_remote_code=True)
-# 设置左侧填充以解决警告
-tokenizer.padding_side = 'left'
-model = AutoModelForCausalLM.from_pretrained("./pretrained_models/qwen3", device_map="auto", torch_dtype=torch.bfloat16)
-# model = PeftModel.from_pretrained(model, model_id="./output/Qwen3/checkpoint-3750/")
-model.eval()  # 设置为评估模式
-print("模型加载完成")
+    # 加载测试数据
+    logger.info("正在加载测试数据...")
+    with open(test_json_new_path, 'r', encoding='utf-8') as file:
+        test_data = json.load(file)
+    logger.info(f"加载完成，共 {len(test_data)} 条测试数据")
 
-# 批量预测
-print("开始批量预测...")
-batch_size = 8  # 可根据GPU内存调整
-results = batch_predict(test_data, model, tokenizer, batch_size)
+    # 加载模型和分词器
+    logger.info("正在加载模型和分词器...")
+    tokenizer = AutoTokenizer.from_pretrained("./pretrained_models/qwen3", use_fast=False, trust_remote_code=True)
+    # 设置左侧填充以解决警告
+    tokenizer.padding_side = 'left'
+    model = AutoModelForCausalLM.from_pretrained("./pretrained_models/qwen3", device_map="auto",
+                                                 torch_dtype=torch.bfloat16)
+    # model = PeftModel.from_pretrained(model, model_id="./output/Qwen3/checkpoint-3750/")
+    model.eval()  # 设置为评估模式
+    logger.info("模型加载完成")
 
-# 写入结果，保持原始顺序
-print("写入结果到CSV文件...")
-with open("submit.csv", 'w', encoding='utf-8') as file:
-    for item in tqdm(test_data, desc="写入进度"):
-        id_value = item['id']
-        response = results[id_value]
-        file.write(f"{id_value},{response}\n")
+    # 批量预测
+    logger.info("开始批量预测...")
+    batch_size = 8  # 可根据GPU内存调整
+    results = batch_predict(test_data, model, tokenizer, batch_size, logger=logger)
 
-print("处理完成!")
+    # 写入结果，保持原始顺序
+    logger.info("写入结果到CSV文件...")
+    with open("submit.csv", 'w', encoding='utf-8') as file:
+        for item in tqdm(test_data, desc="写入进度"):
+            id_value = item['id']
+            response = results[id_value]
+            file.write(f"{id_value},{response}\n")
 
+    logger.info("处理完成!")
+
+
+if __name__ == "__main__":
+    main()
