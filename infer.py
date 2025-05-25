@@ -2,6 +2,7 @@ import json
 import torch
 import logging
 import os
+from config import api_key as API_KEY
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
