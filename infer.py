@@ -99,7 +99,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
             generated_ids = model.generate(
                 model_inputs.input_ids,
-                max_new_tokens=600
+                max_new_tokens=1024
             )
 
         # 存储需要重试的项
