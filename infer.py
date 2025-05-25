@@ -62,7 +62,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
             generated_ids = model.generate(
                 model_inputs.input_ids,
-                max_new_tokens=4096
+                max_new_tokens=512
             )
 
         for j, (input_ids, output_ids) in enumerate(zip(model_inputs.input_ids, generated_ids)):
@@ -120,7 +120,7 @@ print("模型加载完成")
 
 # 批量预测
 print("开始批量预测...")
-batch_size = 8  # 可根据GPU内存调整
+batch_size = 64  # 可根据GPU内存调整
 results = batch_predict(test_data, model, tokenizer, batch_size)
 
 # 写入结果，保持原始顺序
