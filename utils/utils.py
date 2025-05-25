@@ -50,7 +50,7 @@ def extract_answer(response):
     return filtered_answer
 
 
-def extract_chains_of_thought(self, text: str) -> Optional[str]:
+def extract_chains_of_thought(text: str) -> Optional[str]:
     """
     从文本中提取<chains_of_thought>标签之间的内容
 

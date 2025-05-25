@@ -6,6 +6,7 @@ from typing import List, Dict, Any, Optional, Union
 from tqdm import tqdm
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from llm_request.llm_requestor import LLMRequestor
+from utils.utils import extract_chains_of_thought
 
 
 class DataAugmenter:
@@ -95,7 +96,7 @@ class DataAugmenter:
                 )
 
                 # 检查是否包含正确的格式
-                content = self.extract_chains_of_thought(response)
+                content = extract_chains_of_thought(response)
 
                 if content is not None:
                     return content  # 返回提取的内容
