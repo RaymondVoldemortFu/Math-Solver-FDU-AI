@@ -16,11 +16,14 @@ def extract_answer(response):
         response (str): LLM生成的回答文本
 
     返回:
-        str: 提取出的答案内容
+        str: 提取出的答案内容，只保留数字、分数线/和小数点.
 
     异常:
         ValueError: 如果没有找到答案或答案格式不正确
     """
+    # 移除所有空格和换行符
+    response = re.sub(r'[\s\n]+', '', response)
+
     # 首先移除<think>...</think>中的内容
     clean_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
 
@@ -32,5 +35,15 @@ def extract_answer(response):
     if not matches:
         raise ValueError("未找到标准格式的答案，应为<answer>example_numbers</answer>格式")
 
-    # 返回最后一个匹配到的答案内容
-    return matches[-1]
+    # 获取最后一个匹配到的答案内容
+    raw_answer = matches[-1]
+
+    # 过滤答案中的所有中英文字符，只保留数字、分数线/和小数点.
+    # 使用正则表达式保留数字、/和.，移除其他所有字符
+    filtered_answer = re.sub(r'[^\d/.%-]', '', raw_answer)
+
+    # 如果过滤后的答案为空，抛出异常
+    if not filtered_answer:
+        raise ValueError("答案格式不正确，过滤后没有有效数字")
+
+    return filtered_answer

@@ -1,9 +1,40 @@
 import json
 import torch
+import logging
+import os
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import PeftModel
 from utils.utils import SYSTEM_PROMPT, extract_answer
+from datetime import datetime
+
+
+def setup_logger():
+    """设置日志记录器"""
+    # 创建logs目录（如果不存在）
+    if not os.path.exists("logs"):
+        os.makedirs("logs")
+
+    # 创建带有时间戳的日志文件名
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = f"logs/infer_log_{timestamp}.log"
+
+    # 配置日志记录器
+    logger = logging.getLogger("inference")
+    logger.setLevel(logging.INFO)
+
+    # 创建文件处理器
+    file_handler = logging.FileHandler(log_file, encoding='utf-8')
+    file_handler.setLevel(logging.INFO)
+
+    # 创建格式化器
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(formatter)
+
+    # 添加处理器到日志记录器
+    logger.addHandler(file_handler)
+
+    return logger
 
 
 def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=True, max_retries=20):
@@ -12,6 +43,11 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
     error_cases = {}  # 用于记录重试后仍然无法提取答案的情况
     retry_counts = {}  # 记录每个样本的重试次数
     pending_items = test_data.copy()  # 待处理的样本列表
+
+    # 创建总体进度条，初始值为样本总数
+    total_items = len(test_data)
+    progress_bar = tqdm(total=total_items, desc="预测进度")
+    processed_count = 0
 
     # 循环直到没有待处理项或全部达到重试上限
     while pending_items:
@@ -31,7 +67,8 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             # 根据重试次数调整系统提示词
             system_prompt = SYSTEM_PROMPT
             if retry_count > 0:
-                system_prompt += f"\n这是第{retry_count + 1}次尝试，请务必以<answer>数字</answer>格式给出答案，不要使用其他格式。"
+                system_prompt += (f"\n这是第{retry_count + 1}次尝试，请务必以<answer>数字</answer>格式给出答案，不要使用其他格式。"
+                                  f"推理的时候减少过多的思考，以给出答案为重")
 
             if use_system_prompt:
                 messages = [
@@ -53,6 +90,8 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
         if not batch_to_process:
             break
 
+        # print("batch_messages:", batch_messages)
+
         texts = [tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
                  for msg in batch_messages]
 
@@ -61,21 +100,25 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
             generated_ids = model.generate(
                 model_inputs.input_ids,
-                max_new_tokens=512
+                max_new_tokens=1024
             )
 
         # 存储需要重试的项
         items_to_retry = []
+        newly_completed = 0
 
         for j, (input_ids, output_ids) in enumerate(zip(model_inputs.input_ids, generated_ids)):
             item_id = batch_ids[j]
             retry_count = batch_retry_counts[j]
             generated_part = output_ids[len(input_ids):]
             response = tokenizer.decode(generated_part, skip_special_tokens=True)
-
+            # print(f"ID: {item_id} - 生成的回答: {response}")
             # 尝试提取标准格式的答案
             try:
                 answer = extract_answer(response)
+                # 只有首次成功才计入进度
+                if item_id not in results:
+                    newly_completed += 1
                 results[item_id] = answer  # 成功提取答案，保存并不再重试
                 if retry_count > 0:
                     print(f"ID: {item_id} - 在第{retry_count + 1}次尝试后成功获取答案")
@@ -90,7 +133,15 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
                     # 达到最大重试次数，保存原始响应
                     error_cases[item_id] = str(e)
                     results[item_id] = response.replace('\n', ' ')
+                    # 只有首次达到最大重试次数才计入进度
+                    if item_id not in results:
+                        newly_completed += 1
                     print(f"ID: {item_id} - 达到最大重试次数({max_retries})，无法提取标准答案")
+
+        # 更新进度条
+        processed_count += newly_completed
+        progress_bar.update(newly_completed)
+        progress_bar.set_postfix({"已完成": processed_count, "待处理": len(pending_items), "重试": len(items_to_retry)})
 
         # 将需要重试的项添加到待处理列表的前面，确保优先处理
         pending_items = items_to_retry + pending_items
@@ -99,7 +150,8 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
         del model_inputs, generated_ids, texts
         torch.cuda.empty_cache()
 
-        print(f"当前批次处理完成，共有 {len(items_to_retry)}/{len(batch_to_process)} 项需要重试")
+    # 关闭进度条
+    progress_bar.close()
 
     # 输出错误统计
     if error_cases:
@@ -129,7 +181,7 @@ print("模型加载完成")
 
 # 批量预测
 print("开始批量预测...")
-batch_size = 80  # 可根据GPU内存调整
+batch_size = 8  # 可根据GPU内存调整
 results = batch_predict(test_data, model, tokenizer, batch_size)
 
 # 写入结果，保持原始顺序
