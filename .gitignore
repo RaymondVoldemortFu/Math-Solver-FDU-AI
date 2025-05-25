@@ -5,3 +5,7 @@ output
 swanlog
 submit.csv
 __pycache__
+.ipynb_checkpoints
+
+
+_

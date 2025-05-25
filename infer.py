@@ -89,7 +89,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
                     error_cases[item_id] = str(e)
                     results[item_id] = response.replace('\n', ' ')
                     print(f"ID: {item_id} - 达到最大重试次数({max_retries})，无法提取标准答案")
-            # print(f"results: {results}")
+            print(f"results: {results}")
         # 释放内存
         del model_inputs, generated_ids, texts
         torch.cuda.empty_cache()
@@ -122,7 +122,7 @@ print("模型加载完成")
 
 # 批量预测
 print("开始批量预测...")
-batch_size = 8  # 可根据GPU内存调整
+batch_size = 80  # 可根据GPU内存调整
 results = batch_predict(test_data, model, tokenizer, batch_size)
 
 # 写入结果，保持原始顺序
