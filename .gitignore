@@ -7,5 +7,6 @@ submit.csv
 __pycache__
 .ipynb_checkpoints
 logs
+.env
 
 
