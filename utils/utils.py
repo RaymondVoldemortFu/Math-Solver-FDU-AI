@@ -10,6 +10,7 @@ SYSTEM_PROMPT = ("你是一个数学解题助手，负责解答数学问题。�
 def extract_answer(response):
     """
     从LLM输出文本中提取<answer>example_numbers</answer>格式的答案
+    匹配规则：在<think></think>标签外的正文中的最后一个<answer>example_numbers</answer>
 
     参数:
         response (str): LLM生成的回答文本
@@ -20,12 +21,16 @@ def extract_answer(response):
     异常:
         ValueError: 如果没有找到答案或答案格式不正确
     """
-    # 使用正则表达式查找<answer>与</answer>之间的内容
-    pattern = r'<answer>(.*?)</answer>'
-    match = re.search(pattern, response)
+    # 首先移除<think>...</think>中的内容
+    clean_response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL)
 
-    if not match:
+    # 在清理后的文本中查找所有<answer>与</answer>之间的内容
+    pattern = r'<answer>(.*?)</answer>'
+    matches = re.findall(pattern, clean_response)
+
+    # 如果找不到匹配项，抛出异常
+    if not matches:
         raise ValueError("未找到标准格式的答案，应为<answer>example_numbers</answer>格式")
 
-    # 返回匹配到的答案内容
-    return match.group(1)
+    # 返回最后一个匹配到的答案内容
+    return matches[-1]
