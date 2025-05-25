@@ -73,13 +73,18 @@ class DataAugmenter:
         question = item.get('question', '')
         answer = item.get('answer', '')
 
-        prompt = f"""请为以下问题生成详细的思维链:
+        # 基本提示词
+        base_prompt = f"""请为以下问题生成详细的思维链:
 
     问题: {question}
 
     参考答案: {answer}
 
     请生成从问题到答案的思考过程，展示解题的逻辑步骤。"""
+
+        prompt = base_prompt
+        format_attempts = 0
+        max_format_attempts = 3  # 最多尝试调整格式的次数
 
         # 请求LLM并实现重试逻辑
         for attempt in range(self.max_retries):
@@ -88,7 +93,35 @@ class DataAugmenter:
                     question=prompt,
                     system_prompt=self.system_prompt
                 )
-                return response
+
+                # 检查是否包含正确的格式
+                content = self.extract_chains_of_thought(response)
+
+                if content is not None:
+                    return content  # 返回提取的内容
+
+                # 如果格式不正确且尝试次数未超过限制，调整提示词重新生成
+                if format_attempts < max_format_attempts:
+                    format_attempts += 1
+                    self.logger.warning(
+                        f"未检测到正确的思维链格式，调整提示词并重试 ({format_attempts}/{max_format_attempts})")
+
+                    # 调整提示词，强调格式要求
+                    prompt = f"""{base_prompt}
+
+    【格式要求】你必须使用下面的格式输出思维链：
+    <chains_of_thought>
+    你的思维链内容
+    </chains_of_thought>
+
+    请注意，思维链必须包含在这些标签之间，这非常重要！"""
+
+                    continue  # 使用新的提示词重试
+                else:
+                    # 如果多次尝试后仍无法获得正确格式，返回原始响应
+                    self.logger.warning(f"多次尝试后仍未获得正确格式的思维链，返回原始响应")
+                    return response
+
             except Exception as e:
                 self.logger.warning(f"生成增强内容失败 (尝试 {attempt + 1}/{self.max_retries}): {str(e)}")
                 if attempt < self.max_retries - 1:

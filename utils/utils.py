@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 
 SYSTEM_PROMPT = ("你是一个数学解题助手，负责解答数学问题。你不与用户交互，只需给出答案和有限的解题过程。答案必须以正确格式呈现。"
@@ -47,3 +48,21 @@ def extract_answer(response):
         raise ValueError("答案格式不正确，过滤后没有有效数字")
 
     return filtered_answer
+
+
+def extract_chains_of_thought(self, text: str) -> Optional[str]:
+    """
+    从文本中提取<chains_of_thought>标签之间的内容
+
+    Args:
+        text: 输入的文本内容
+
+    Returns:
+        提取的内容，如果没有匹配则返回None
+    """
+    pattern = r'<chains_of_thought>(.*?)</chains_of_thought>'
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return None
+
