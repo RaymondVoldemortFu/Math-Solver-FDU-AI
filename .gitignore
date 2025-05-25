@@ -4,3 +4,4 @@ pretrained_models
 output
 swanlog
 submit.csv
+__pycache__
