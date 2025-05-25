@@ -13,7 +13,8 @@ class DataAugmenter:
 
     def __init__(self, llm_requestor: LLMRequestor, output_dir: str = "augmented_data",
                  augment_field: str = "chain_of_thought", system_prompt: str = None,
-                 max_workers: int = 5, save_interval: int = 50):
+                 max_workers: int = 5, save_interval: int = 50, max_retries: int = 40,
+                 retry_delay: float = 1.0):
         """
         初始化数据增强器
 
@@ -24,12 +25,16 @@ class DataAugmenter:
             system_prompt: 发送给LLM的系统提示词
             max_workers: 最大并行工作线程数
             save_interval: 每处理多少条数据保存一次中间结果
+            max_retries: 单条记录请求失败时的最大重试次数
+            retry_delay: 重试之间的延迟时间（秒）
         """
         self.llm_requestor = llm_requestor
         self.output_dir = output_dir
         self.augment_field = augment_field
         self.max_workers = max_workers
         self.save_interval = save_interval
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
 
         # 创建输出目录
         os.makedirs(output_dir, exist_ok=True)
@@ -39,6 +44,8 @@ class DataAugmenter:
             "你是一个专业的思维链生成助手。请为给定的问题和答案生成详细的思考过程，"
             "说明从问题到答案的推理步骤。思维链应该简洁准确，并展示解决问题的完整思考路径。"
             "过程不易过长，清晰即可"
+            "请遵循以下格式：\n"
+            "<chains_of_thought>content</chains_of_thought>\n"
         )
 
         self.logger = llm_requestor.logger
@@ -68,22 +75,30 @@ class DataAugmenter:
 
         prompt = f"""请为以下问题生成详细的思维链:
 
-问题: {question}
+    问题: {question}
 
-参考答案: {answer}
+    参考答案: {answer}
 
-请生成从问题到答案的思考过程，展示解题的逻辑步骤。"""
+    请生成从问题到答案的思考过程，展示解题的逻辑步骤。"""
 
-        # 请求LLM
-        try:
-            response = self.llm_requestor.ask(
-                question=prompt,
-                system_prompt=self.system_prompt
-            )
-            return response
-        except Exception as e:
-            self.logger.error(f"生成增强内容失败: {str(e)}")
-            return f"增强内容生成失败: {str(e)}"
+        # 请求LLM并实现重试逻辑
+        for attempt in range(self.max_retries):
+            try:
+                response = self.llm_requestor.ask(
+                    question=prompt,
+                    system_prompt=self.system_prompt
+                )
+                return response
+            except Exception as e:
+                self.logger.warning(f"生成增强内容失败 (尝试 {attempt + 1}/{self.max_retries}): {str(e)}")
+                if attempt < self.max_retries - 1:
+                    # 添加指数退避延迟
+                    delay = self.retry_delay * (2 ** attempt)
+                    self.logger.info(f"等待 {delay:.2f} 秒后重试...")
+                    time.sleep(delay)
+                else:
+                    self.logger.error(f"达到最大重试次数 ({self.max_retries})，放弃请求")
+                    return f"ERROR: 在 {self.max_retries} 次尝试后增强内容生成失败: {str(e)}"
 
     def augment_data(self, data: List[Dict[str, Any]],
                      checkpoint_file: str = None) -> List[Dict[str, Any]]:
