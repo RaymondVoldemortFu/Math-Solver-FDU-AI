@@ -56,7 +56,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
 
         texts = [tokenizer.apply_chat_template(msg, tokenize=False, add_generation_prompt=True)
                  for msg in batch_messages]
-
+        # print(f"当前批次文本: {texts}")
         # 批量编码和推理
         with torch.no_grad():
             model_inputs = tokenizer(texts, return_tensors="pt", padding=True).to(model.device)
@@ -70,6 +70,8 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
             retry_count = batch_retry_counts[j]
             generated_part = output_ids[len(input_ids):]
             response = tokenizer.decode(generated_part, skip_special_tokens=True)
+
+            # print(f"response: {response}")
 
             # 尝试提取标准格式的答案
             try:
@@ -87,7 +89,7 @@ def batch_predict(test_data, model, tokenizer, batch_size=4, use_system_prompt=T
                     error_cases[item_id] = str(e)
                     results[item_id] = response.replace('\n', ' ')
                     print(f"ID: {item_id} - 达到最大重试次数({max_retries})，无法提取标准答案")
-
+            # print(f"results: {results}")
         # 释放内存
         del model_inputs, generated_ids, texts
         torch.cuda.empty_cache()
@@ -120,7 +122,7 @@ print("模型加载完成")
 
 # 批量预测
 print("开始批量预测...")
-batch_size = 64  # 可根据GPU内存调整
+batch_size = 8  # 可根据GPU内存调整
 results = batch_predict(test_data, model, tokenizer, batch_size)
 
 # 写入结果，保持原始顺序
