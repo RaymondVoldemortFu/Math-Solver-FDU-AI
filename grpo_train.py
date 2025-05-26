@@ -120,7 +120,10 @@ def reward_fn(prompts, completions, **kwargs):
                 cot = extract_thinking(response) or response
 
                 # 提取答案
-                pred_ans = extract_answer(response)
+                try:
+                    pred_ans = extract_answer(response)
+                except Exception:
+                    pred_ans = response.strip()
 
                 # 计算思维链相似度
                 cot_sim = semantic_similarity(cot, expected_cot)
