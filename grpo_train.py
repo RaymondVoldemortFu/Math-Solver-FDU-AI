@@ -90,7 +90,7 @@ def semantic_similarity(a: str, b: str) -> float:
 
 
 # 6. 构造 reward 函数
-def reward_fn(prompts, completions):
+def reward_fn(prompts, completions, **kwargs):
     rewards = []
 
     for prompt, response in zip(prompts, completions):
