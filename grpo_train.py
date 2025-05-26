@@ -14,7 +14,7 @@ import swanlab
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-transformers_logging.set_verbosity_info()
+# transformers_logging.set_verbosity_info()
 
 # 初始化SwanLab
 swanlab.init(
