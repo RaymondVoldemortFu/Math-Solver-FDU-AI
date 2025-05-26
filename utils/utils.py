@@ -66,3 +66,19 @@ def extract_chains_of_thought(text: str) -> Optional[str]:
         return match.group(1).strip()
     return None
 
+
+def extract_thinking(text: str) -> Optional[str]:
+    """
+    从文本中提取<thinking>标签之间的内容
+
+    Args:
+        text: 输入的文本内容
+
+    Returns:
+        提取的内容，如果没有匹配则返回None
+    """
+    pattern = r'<think>(.*?)</think>'
+    match = re.search(pattern, text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+    return None
