@@ -15,6 +15,7 @@ import swanlab
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 # transformers_logging.set_verbosity_info()
+global_step = 0
 
 # 初始化SwanLab
 swanlab.init(
@@ -91,6 +92,7 @@ def semantic_similarity(a: str, b: str) -> float:
 
 # 6. 构造 reward 函数
 def reward_fn(prompts, completions, **kwargs):
+    global global_step
     rewards = []
 
     for prompt, response in zip(prompts, completions):
@@ -136,16 +138,18 @@ def reward_fn(prompts, completions, **kwargs):
                 else:
                     answer_match = 0.0
 
-                # 综合奖励值（可调整权重）
+                # 综合奖励值
                 reward = 0.6 * cot_sim + 0.4 * answer_match
 
-                # 记录评价结果
-                if len(rewards) % 10 == 0:
-                    logger.info(f"问题: {question[:50]}...")
-                    logger.info(f"思维链相似度: {cot_sim:.2f}, 答案匹配: {answer_match}")
-                    logger.info(f"总奖励: {reward:.2f}")
-
                 rewards.append(reward)
+
+                # 记录单个样本的指标
+                swanlab.log({
+                    "sample/cot_similarity": cot_sim,
+                    "sample/answer_match": answer_match,
+                    "sample/reward": reward
+                }, step=global_step)
+                global_step += 1
 
             except Exception as e:
                 logger.error(f"处理回答时出错: {str(e)}")
@@ -154,6 +158,15 @@ def reward_fn(prompts, completions, **kwargs):
         except Exception as e:
             logger.error(f"奖励计算出错: {str(e)}")
             rewards.append(0.0)
+
+    # 记录每个批次的平均指标
+    if rewards:
+        batch_avg_reward = sum(rewards) / len(rewards)
+        swanlab.log({"batch/avg_reward": batch_avg_reward}, step=global_step)
+
+        # 每10个批次在控制台输出
+        if global_step % 10 == 0:
+            logger.info(f"Step {global_step}, 平均奖励: {batch_avg_reward:.4f}")
 
     return rewards
 
@@ -172,7 +185,7 @@ training_args = GRPOConfig(
     logging_steps=10,
     save_steps=200,
     learning_rate=1e-5,
-    max_steps=2000,
+    num_train_epochs=2,
     # use_vllm=True,
     # vllm_server_host="127.0.0.1",
     report_to="none",
