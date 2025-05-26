@@ -90,10 +90,10 @@ def semantic_similarity(a: str, b: str) -> float:
 
 
 # 6. 构造 reward 函数
-def reward_fn(prompts, responses):
+def reward_fn(prompts, completions):
     rewards = []
 
-    for prompt, response in zip(prompts, responses):
+    for prompt, response in zip(prompts, completions):
         try:
             # 从prompt中提取问题
             match = re.search(r"<\|im_start\|>user\n(.*?)<\|im_end\|>", prompt)
