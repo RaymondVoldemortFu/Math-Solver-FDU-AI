@@ -81,8 +81,8 @@ def semantic_similarity(a: str, b: str) -> float:
     if not a or not b:
         return 0.0
     try:
-        emb1 = sentence_model.encode(a, convert_to_tensor=True)
-        emb2 = sentence_model.encode(b, convert_to_tensor=True)
+        emb1 = sentence_model.encode(a, convert_to_tensor=True, show_progress_bar=False)
+        emb2 = sentence_model.encode(b, convert_to_tensor=True, show_progress_bar=False)
         return float(util.cos_sim(emb1, emb2))
     except Exception as e:
         logger.error(f"计算语义相似度出错: {str(e)}")
