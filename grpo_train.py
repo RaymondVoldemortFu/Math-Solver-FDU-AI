@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import swanlab
+import config
 
 # 配置日志
 logging.basicConfig(level=logging.INFO)
@@ -17,12 +18,13 @@ logger = logging.getLogger(__name__)
 # transformers_logging.set_verbosity_info()
 global_step = 0
 
+swanlab.login(api_key=config.swanlab_key)
 # 初始化SwanLab
 swanlab.init(
     project="qwen-math-solver",
     experiment_name="grpo-training",
     config={"model": "Qwen3-0.6n"},
-    mode="local"
+    mode="cloud"
 )
 device = "cuda" if torch.cuda.is_available() else "cpu"
 logger.info(f"使用设备: {device}")
