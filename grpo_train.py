@@ -16,14 +16,16 @@ logger = logging.getLogger(__name__)
 swanlab.init(
     project="qwen-math-solver",
     experiment_name="grpo-training",
-    config={"model": "Qwen3-0.6n"}
+    config={"model": "Qwen3-0.6n"},
+    mode="local"
 )
-
+device = "cuda" if torch.cuda.is_available() else "cpu"
+logger.info(f"使用设备: {device}")
 # 1. 加载句向量模型（适用于中文）
-model_name = "BAAI/bge-large-zh"
+model_name = r"pretrained_models/bge-large-zh"
 logger.info(f"加载句向量模型: {model_name}")
-sentence_model = SentenceTransformer(model_name)
-
+sentence_model = SentenceTransformer(model_name_or_path=model_name)
+sentence_model.to(device=device)
 # 2. 载入数据集并预处理
 logger.info("载入数据集")
 dataset_path = "augmented_data/train_augmented.json"
@@ -72,6 +74,7 @@ def reward_fn(prompts, responses):
             # 从prompt中提取问题
             match = re.search(r"<\|im_start\|>user\n(.*?)<\|im_end\|>", prompt)
             if not match:
+                logger.error(f"无法从提示中提取问题{prompt}")
                 rewards.append(0.0)
                 continue
 
@@ -80,6 +83,7 @@ def reward_fn(prompts, responses):
             # 使用预先构建的映射查找参考答案
             if question not in question_map:
                 rewards.append(0.0)
+                logger.error(f"问题 {question} 不在参考数据集中")
                 continue
 
             ref_data = question_map[question]
