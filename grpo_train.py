@@ -1,9 +1,12 @@
 import torch
 from sentence_transformers import SentenceTransformer, util
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
 from trl import GRPOConfig, GRPOTrainer
 from utils.utils import SYSTEM_PROMPT, extract_answer, extract_thinking
+from transformers import logging as transformers_logging
+import pandas as pd
 import re
+import json
 import logging
 import os
 import swanlab
@@ -11,6 +14,7 @@ import swanlab
 # 配置日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+transformers_logging.set_verbosity_info()
 
 # 初始化SwanLab
 swanlab.init(
@@ -29,7 +33,27 @@ sentence_model.to(device=device)
 # 2. 载入数据集并预处理
 logger.info("载入数据集")
 dataset_path = "augmented_data/train_augmented.json"
-dataset = load_dataset("json", data_files=dataset_path)["train"]
+
+try:
+    # 读取JSON数据
+    with open("augmented_data/train_augmented.json", "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    # 数据预处理，确保所有字段都是简单类型
+    processed_data = []
+    for item in data:
+        # 确保每个问题是字符串类型
+        if isinstance(item.get("question"), list):
+            item["question"] = " ".join(item["question"])  # 或其他合适的处理方式
+        processed_data.append(item)
+
+    # 直接从处理后的数据创建Dataset
+    dataset = Dataset.from_list(processed_data)
+    print(f"成功创建数据集，包含 {len(dataset)} 个样本")
+
+except Exception as e:
+    print(f"创建数据集出错：{e}")
+    raise e
 
 # 创建问题到答案和思维链的映射，提高查询效率
 question_map = {}
@@ -146,8 +170,8 @@ training_args = GRPOConfig(
     save_steps=200,
     learning_rate=1e-5,
     max_steps=2000,
-    use_vllm=True,
-    vllm_server_host="127.0.0.1",
+    # use_vllm=True,
+    # vllm_server_host="127.0.0.1",
     report_to="none",
 )
 
